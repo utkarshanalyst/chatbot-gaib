@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from io import BytesIO
+import json
 
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_community.vectorstores import Chroma
@@ -41,29 +42,28 @@ if "plot_y_col" not in st.session_state:
 if "plot_chart_type" not in st.session_state:
     st.session_state.plot_chart_type = None
 
-
 # --- 🔐 Global Configurations ---
-# IMPORTANT: Ensure this path is correct for your system.
-SERVICE_ACCOUNT_KEY_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", r"C:\Users\UtkarshSrivastava\OneDrive - DILYTICS TECHNOLOGIES PVT LTD\Documents\Google AI ChatBot\vertex-ai-462816-c5f33c6dc69a.json") # <<<--- YAHAN APNA PATH CHECK KAREIN AUR UPDATE KAREIN
-PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "vertex-ai-462816")
-LOCATION = os.environ.get("GCP_LOCATION", "us-central1") # Ensure this matches your Vertex AI model location
-DATASET_ID = os.environ.get("BQ_DATASET_ID", "PROCUREMENT_DATA") # For BigQuery
+# --- IMPORTANT: Changes for Streamlit Cloud Deployment ---
+# Ab saari configurations Streamlit Secrets se load hongi.
+try:
+    secrets = st.secrets
+    PROJECT_ID = secrets["gcp_project_id"]
+    LOCATION = secrets.get("gcp_location", "us-central1")
+    DATASET_ID = secrets["bq_dataset_id"]
+    GCP_CREDENTIALS_JSON = json.loads(secrets["gcp_credentials"])
+    # Set environment variable for authentication for Google Cloud Libraries
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GCP_CREDENTIALS_JSON
+except KeyError as e:
+    st.error(f"❌ A required secret was not found: {e}. Please ensure you have added the correct secrets to your Streamlit Cloud app.")
+    st.stop()
 
-# --- Document Chatbot Specific Paths ---
+# --- Document Chatbot Specific Paths (Updated for relative paths) ---
 DOCUMENT_PATHS = [
-    r"C:\Users\UtkarshSrivastava\OneDrive - DILYTICS TECHNOLOGIES PVT LTD\Documents\Google AI ChatBot\DiLytics Procurement Insight Solution Overview v1.0 1.pdf", # <<<--- YAHAN APNA PATH CHECK KAREIN AUR UPDATE KAREIN
-    r"C:\Users\UtkarshSrivastava\OneDrive - DILYTICS TECHNOLOGIES PVT LTD\Documents\Google AI ChatBot\Dilytics Procuremnt Insights Mertics and Data Logic Draft A.pdf" # <<<--- YAHAN APNA PATH CHECK KAREIN AUR UPDATE KAREIN
+    "DiLytics Procurement Insight Solution Overview v1.0 1.pdf",
+    "Dilytics Procuremnt Insights Mertics and Data Logic Draft A.pdf"
 ]
 PERSIST_DIRECTORY = "./chroma_db"
-schema_file_path = r"C:\Users\UtkarshSrivastava\OneDrive - DILYTICS TECHNOLOGIES PVT LTD\Documents\Google AI ChatBot\Full_Procurement_Schema.yaml" # <<<--- YAHAN APNA PATH CHECK KAREIN AUR UPDATE KAREIN
-
-# Set environment variable for authentication for Google Cloud Libraries
-if os.path.exists(SERVICE_ACCOUNT_KEY_PATH):
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = SERVICE_ACCOUNT_KEY_PATH
-else:
-    st.error(f"❌ Service account key file not found at: {SERVICE_ACCOUNT_KEY_PATH}. Please set GOOGLE_APPLICATION_CREDENTIALS environment variable or correct the path.")
-    st.stop() # Stop execution if credentials are not found
-
+schema_file_path = "Full_Procurement_Schema.yaml"
 
 # --- Cached Resources for performance ---
 @st.cache_resource(show_spinner="⏳ Initializing AI Models and Databases...")
@@ -254,7 +254,7 @@ def generate_plot_from_df(df: pd.DataFrame, x_col: str, y_col: str, chart_type: 
                 ax.set_ylabel(y_col.replace('_', ' ').title())
                 plot_generated = True
             elif pd.api.types.is_numeric_dtype(df[x_col]) and not y_col:
-                 # If only one numeric column, assume frequency distribution (like histogram but with bars for categories)
+                # If only one numeric column, assume frequency distribution (like histogram but with bars for categories)
                 df_counts = df[x_col].value_counts().reset_index()
                 df_counts.columns = [x_col, 'Count']
                 df_counts_sorted = df_counts.sort_values(by='Count', ascending=False)
@@ -301,7 +301,7 @@ def generate_plot_from_df(df: pd.DataFrame, x_col: str, y_col: str, chart_type: 
                 else:
                     labels = pie_data[x_col]
                     sizes = pie_data[y_col]
-                
+                    
                 # Check if all sizes are zero to prevent error
                 if sum(sizes) == 0:
                     plt.close(fig)
@@ -346,7 +346,7 @@ def generate_plot_from_df(df: pd.DataFrame, x_col: str, y_col: str, chart_type: 
             if chart_type in ['bar', 'countplot'] and (pd.api.types.is_object_dtype(df[x_col]) or pd.api.types.is_categorical_dtype(df[x_col])):
                 plt.xticks(rotation=45, ha='right', fontsize=10)
             else:
-                 plt.xticks(fontsize=10) # Keep default rotation for numeric/datetime if not bar/countplot
+                plt.xticks(fontsize=10) # Keep default rotation for numeric/datetime if not bar/countplot
             plt.yticks(fontsize=10) # Set fontsize for y-ticks too
             plt.tight_layout()
             return _save_plot_to_bytes(fig)
@@ -759,14 +759,14 @@ def process_user_question(question: str, doc_vectorstore: Chroma, llm_model: Cha
     
     return response_elements
 
-# --- Authentication Logic ---
+# --- Authentication Logic (Updated to use secrets) ---
 def authenticate():
     st.sidebar.title("Login")
     username = st.sidebar.text_input("Username")
     password = st.sidebar.text_input("Password", type="password")
 
     if st.sidebar.button("Login"):
-        if username == "DILPYTHONPRO" and password == "UTechBot":
+        if username == st.secrets.get("login_username") and password == st.secrets.get("login_password"):
             st.session_state.authenticated = True
             st.rerun()
         else:
@@ -822,7 +822,7 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 response_elements = process_user_question(prompt, vectorstore, llm, SCHEMA_GUIDE)
-                
+            
                 # Display the main text response in the current chat bubble
                 st.markdown(response_elements["text"])
 
