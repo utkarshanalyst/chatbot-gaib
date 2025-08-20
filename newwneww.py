@@ -45,16 +45,32 @@ if "plot_chart_type" not in st.session_state:
 # --- 🔐 Global Configurations ---
 # --- IMPORTANT: Changes for Streamlit Cloud Deployment ---
 # Ab saari configurations Streamlit Secrets se load hongi.
+import json
+import os
+import tempfile
+import streamlit as st
+
 try:
     secrets = st.secrets
     PROJECT_ID = secrets["gcp_project_id"]
     LOCATION = secrets.get("gcp_location", "us-central1")
     DATASET_ID = secrets["bq_dataset_id"]
-    GCP_CREDENTIALS_JSON = json.loads(secrets["gcp_credentials"])
-    # Set environment variable for authentication for Google Cloud Libraries
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GCP_CREDENTIALS_JSON
+    
+    # Load the JSON string from secrets and create a temporary file
+    gcp_credentials_json = json.loads(secrets["gcp_credentials"])
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as temp_file:
+        json.dump(gcp_credentials_json, temp_file)
+        temp_file_path = temp_file.name
+    
+    # Set the environment variable to the path of the temporary file
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_file_path
+    
 except KeyError as e:
     st.error(f"❌ A required secret was not found: {e}. Please ensure you have added the correct secrets to your Streamlit Cloud app.")
+    st.stop()
+except json.JSONDecodeError:
+    st.error("❌ Invalid JSON format in 'gcp_credentials' secret. Please check for extra characters or formatting errors.")
     st.stop()
 
 # --- Document Chatbot Specific Paths (Updated for relative paths) ---
