@@ -193,12 +193,10 @@ pyparsing==3.2.3
 pypdf==5.8.0
 PyPika==0.48.9
 pyproject_hooks==1.2.0
-pyreadline3==3.5.4
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 python-json-logger==3.2.1
 pytz==2024.2
-pywinpty==2.0.14
 PyYAML==6.0.2
 pyzmq==26.2.0
 radon==6.0.1
